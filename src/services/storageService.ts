@@ -10,13 +10,21 @@ function safeName(fileName: string) {
 async function uploadImage(file: File, userId: string, folder: "rooms" | "tiles" | "results") {
   requireSupabaseConfigured();
   const path = `${folder}/${userId}/${Date.now()}-${safeName(file.name)}`;
+  const { error: listError } = await supabase.storage.from(BUCKET).list(folder, { limit: 1 });
+
+  if (listError) {
+    throw new Error(
+      `Không thể truy cập bucket ${BUCKET} trước khi upload: ${listError.message}. Hãy chạy lại supabase/storage.sql và đăng nhập lại.`,
+    );
+  }
+
   const { error } = await supabase.storage.from(BUCKET).upload(path, file, {
     cacheControl: "3600",
     upsert: false,
   });
 
   if (error) {
-    throw new Error(`Không thể upload ảnh: ${error.message}`);
+    throw new Error(`Không thể upload ảnh lên bucket ${BUCKET}: ${error.message}. Path thử upload: ${path}`);
   }
 
   const { data } = supabase.storage.from(BUCKET).getPublicUrl(path);
