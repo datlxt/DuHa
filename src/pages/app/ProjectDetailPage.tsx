@@ -49,6 +49,7 @@ export function ProjectDetailPage() {
       <div className="card">
         <p><b>Loại phòng:</b> {project.room_type}</p>
         <p><b>Phong cách:</b> {project.style}</p>
+        <p><b>Chế độ AI:</b> {project.render_mode === "full_design" ? "Hoàn thiện nội thất" : "Chỉ thay gạch nền"}</p>
         <p><b>Trạng thái:</b> {project.status}</p>
         <p className="mt-4 text-muted">{project.advice_text}</p>
         <div className="mt-4 flex flex-wrap gap-2">

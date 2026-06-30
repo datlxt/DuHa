@@ -25,20 +25,35 @@ export const supabaseEnv = {
   anonKey: rawAnonKey,
   isConfigured: !isPlaceholder(rawUrl) && !isPlaceholder(rawAnonKey) && isValidSupabaseUrl(rawUrl),
   issues: [
-    isPlaceholder(rawUrl) ? "Thiếu VITE_SUPABASE_URL thật trong file .env." : "",
-    rawUrl && !isValidSupabaseUrl(rawUrl) ? "VITE_SUPABASE_URL không đúng định dạng https://xxxxx.supabase.co." : "",
-    isPlaceholder(rawAnonKey) ? "Thiếu VITE_SUPABASE_ANON_KEY thật trong file .env." : "",
+    isPlaceholder(rawUrl) ? "Thieu VITE_SUPABASE_URL that trong file .env." : "",
+    rawUrl && !isValidSupabaseUrl(rawUrl) ? "VITE_SUPABASE_URL khong dung dinh dang https://xxxxx.supabase.co." : "",
+    isPlaceholder(rawAnonKey) ? "Thieu VITE_SUPABASE_ANON_KEY that trong file .env." : "",
   ].filter(Boolean),
 };
 
 export function requireSupabaseConfigured() {
   if (!supabaseEnv.isConfigured) {
-    throw new Error(`Chưa cấu hình Supabase: ${supabaseEnv.issues.join(" ")}`);
+    throw new Error(`Chua cau hinh Supabase: ${supabaseEnv.issues.join(" ")}`);
   }
 }
 
 export function readableError(error: unknown) {
-  if (error instanceof Error) return error.message;
-  if (typeof error === "string") return error;
-  return "Có lỗi xảy ra, vui lòng thử lại.";
+  const message = error instanceof Error ? error.message : typeof error === "string" ? error : "";
+  if (!message) return "Co loi xay ra, vui long thu lai.";
+
+  const normalized = message.toLowerCase();
+  if (normalized.includes("incorrect api key") || normalized.includes("invalid api key")) {
+    return "OpenAI API key chua hop le. Vui long kiem tra lai key trong Supabase secrets roi thu lai.";
+  }
+  if (normalized.includes("billing") || normalized.includes("quota") || normalized.includes("insufficient_quota")) {
+    return "Tai khoan OpenAI chua san sang de tao anh. Vui long kiem tra billing/quota trong OpenAI Dashboard.";
+  }
+  if (normalized.includes("model") && (normalized.includes("not found") || normalized.includes("does not exist"))) {
+    return "Model tao anh chua kha dung voi tai khoan OpenAI hien tai. Vui long kiem tra model trong Supabase secret.";
+  }
+
+  return message
+    .replace(/sk-proj-[A-Za-z0-9_-]+/g, "sk-proj-***")
+    .replace(/sk-[A-Za-z0-9_-]+/g, "sk-***")
+    .replace(/eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+/g, "jwt-***");
 }

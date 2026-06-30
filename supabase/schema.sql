@@ -46,6 +46,11 @@ create table if not exists projects (
   project_name text not null,
   room_type text,
   style text,
+  render_mode text default 'tile_only',
+  tile_code_text text,
+  tile_size_text text,
+  tile_surface_text text,
+  tile_color_text text,
   room_image_url text,
   tile_image_url text,
   result_image_url text,
@@ -110,3 +115,14 @@ drop trigger if exists on_auth_user_created on auth.users;
 create trigger on_auth_user_created
 after insert on auth.users
 for each row execute procedure public.handle_new_user();
+
+
+alter table projects add column if not exists generation_status text default 'idle';
+alter table projects add column if not exists generation_error text;
+alter table projects add column if not exists ai_model text;
+alter table projects add column if not exists generated_at timestamp with time zone;
+alter table projects add column if not exists render_mode text default 'tile_only';
+alter table projects add column if not exists tile_code_text text;
+alter table projects add column if not exists tile_size_text text;
+alter table projects add column if not exists tile_surface_text text;
+alter table projects add column if not exists tile_color_text text;
