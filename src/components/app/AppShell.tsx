@@ -1,4 +1,4 @@
-import { Bell, HelpCircle, LogOut, Menu, Search } from "lucide-react";
+﻿import { Bell, HelpCircle, LogOut, Menu, Search } from "lucide-react";
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
 import { useState } from "react";
 import { DuHaLogo } from "../brand/DuHaLogo";
@@ -31,7 +31,18 @@ export function AppShell() {
         <DuHaLogo />
         <nav className="mt-8 space-y-2">
           {items.map(([label, to]) => (
-            <NavLink key={to} to={to} end={to === "/app"} onClick={() => setOpen(false)} className={({ isActive }) => cn("block rounded-lg px-4 py-3 text-sm font-medium transition hover:bg-ivory", isActive ? "bg-burgundy text-white" : "text-muted")}>
+            <NavLink
+              key={to}
+              to={to}
+              end={to === "/app"}
+              onClick={() => setOpen(false)}
+              className={({ isActive }) => cn(
+                "block rounded-lg px-4 py-3 text-sm font-semibold transition",
+                isActive
+                  ? "border border-burgundy/20 bg-burgundy/10 text-burgundy"
+                  : "text-muted hover:bg-ivory hover:text-burgundy",
+              )}
+            >
               {label}
             </NavLink>
           ))}
