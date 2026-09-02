@@ -7,7 +7,7 @@ import { cn } from "../../lib/utils";
 
 const items = [
   ["Tổng quan", "/app"],
-  ["Tạo phối cảnh", "/app/create"],
+  ["DuHa AI", "/app/create"],
   ["Dự án đã lưu", "/app/projects"],
   ["Catalog gạch", "/app/catalog"],
   ["Khách hàng", "/app/customers"],

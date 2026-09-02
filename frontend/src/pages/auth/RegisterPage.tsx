@@ -39,7 +39,7 @@ export function RegisterPage() {
   return (
     <AuthLayout>
       <SupabaseSetupNotice />
-      <h1 className="text-2xl font-bold">Tạo tài khoản DuHa</h1>
+      <h1 className="text-2xl font-bold">Tạo tài khoản Showroom Dũng Hậu</h1>
       <p className="mt-2 text-sm text-muted">Bắt đầu thử gạch và tạo phối cảnh trong vài bước.</p>
       <form onSubmit={submit} className="mt-6 space-y-4">
         <label className="label">Họ tên</label>

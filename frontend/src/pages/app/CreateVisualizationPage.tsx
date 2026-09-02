@@ -66,7 +66,7 @@ function exportCustomerPackage(project: Project, advice: Record<AdviceKey, strin
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>${project.project_name} - DuHa</title>
+  <title>${project.project_name} - Showroom Dũng Hậu</title>
   <style>
     body { font-family: Arial, sans-serif; color: #241a1a; margin: 32px; background: #faf6ef; }
     h1 { color: #8b0015; margin-bottom: 4px; }
@@ -81,7 +81,7 @@ function exportCustomerPackage(project: Project, advice: Record<AdviceKey, strin
 </head>
 <body>
   <h1>${project.project_name}</h1>
-  <p class="muted">DuHa Tile Visualization · ${project.room_type ?? ""} · ${project.style ?? ""}</p>
+  <p class="muted">Showroom Dũng Hậu · DuHa AI · ${project.room_type ?? ""} · ${project.style ?? ""}</p>
   <div class="grid">
     <div class="card"><p class="label">Phòng mộc</p><img src="${project.room_image_url ?? ""}" /></div>
     <div class="card"><p class="label">Mẫu gạch</p><img src="${project.tile_image_url ?? ""}" /></div>
@@ -289,7 +289,7 @@ export function CreateVisualizationPage() {
 
   return (
     <div className="grid gap-6 xl:grid-cols-[280px_1fr]">
-      <aside className="card h-fit">
+      <aside className="card h-fit self-start xl:sticky xl:top-24">
         <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted">Quy trình</p>
         <div className="mt-5 space-y-4">
           {steps.map((step, index) => (
@@ -305,9 +305,9 @@ export function CreateVisualizationPage() {
 
       <main className="space-y-6">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Tạo phối cảnh mới</h1>
+          <h1 className="text-3xl font-bold tracking-tight">DuHa AI</h1>
           <p className="mt-2 max-w-3xl text-base leading-7 text-muted">
-            Upload phòng mộc, mẫu gạch và chọn mục tiêu AI. DuHa sẽ render ảnh và gợi ý phối nội thất phù hợp.
+            Tạo phối cảnh mới: upload phòng mộc, mẫu gạch và chọn mục tiêu AI. DuHa AI sẽ render ảnh và gợi ý phối nội thất phù hợp.
           </p>
         </div>
 
@@ -416,7 +416,7 @@ export function CreateVisualizationPage() {
           <div className="grid gap-4 lg:grid-cols-3">
             <PreviewBox label="Phòng mộc" src={project?.room_image_url ?? roomPreview} emptyText="Chưa có ảnh phòng" />
             <PreviewBox label="Mẫu gạch" src={project?.tile_image_url ?? tileSource} emptyText="Chưa có mẫu gạch" />
-            <PreviewBox label="Phối cảnh DuHa" src={project?.result_image_url} emptyText="AI đang render hoặc chưa có kết quả" />
+            <PreviewBox label="Phối cảnh DuHa AI" src={project?.result_image_url} emptyText="AI đang render hoặc chưa có kết quả" />
           </div>
 
           <div className="mt-6 grid gap-4 lg:grid-cols-[minmax(0,1fr)_240px] xl:grid-cols-[minmax(0,1fr)_280px]">

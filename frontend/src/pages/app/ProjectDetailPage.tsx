@@ -46,7 +46,7 @@ function exportCustomerPackage(project: Project, advice: Advice) {
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>${project.project_name} - DuHa</title>
+  <title>${project.project_name} - Showroom Dũng Hậu</title>
   <style>
     body { font-family: Arial, sans-serif; color: #241a1a; margin: 32px; background: #faf6ef; }
     h1 { color: #8b0015; margin-bottom: 4px; }
@@ -61,7 +61,7 @@ function exportCustomerPackage(project: Project, advice: Advice) {
 </head>
 <body>
   <h1>${project.project_name}</h1>
-  <p class="muted">DuHa Tile Visualization · ${project.room_type ?? ""} · ${project.style ?? ""}</p>
+  <p class="muted">Showroom Dũng Hậu · DuHa AI · ${project.room_type ?? ""} · ${project.style ?? ""}</p>
   <div class="grid">
     <div class="card"><p class="label">Phòng mộc</p><img src="${project.room_image_url ?? ""}" /></div>
     <div class="card"><p class="label">Mẫu gạch</p><img src="${project.tile_image_url ?? ""}" /></div>

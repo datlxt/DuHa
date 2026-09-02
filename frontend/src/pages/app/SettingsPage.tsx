@@ -11,7 +11,7 @@ export function SettingsPage() {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
-  const [form, setForm] = useState({ full_name: "", role: "Chủ cửa hàng", store_name: "DuHa Tile Studio", phone: "" });
+  const [form, setForm] = useState({ full_name: "", role: "Chủ cửa hàng", store_name: "Showroom Dũng Hậu", phone: "" });
 
   useEffect(() => {
     if (!user) return;
@@ -20,7 +20,7 @@ export function SettingsPage() {
       setForm({
         full_name: profile?.full_name ?? user.user_metadata.full_name ?? "",
         role: profile?.role ?? "Chủ cửa hàng",
-        store_name: profile?.store_name ?? "DuHa Tile Studio",
+        store_name: profile?.store_name ?? "Showroom Dũng Hậu",
         phone: profile?.phone ?? "",
       });
       setLoading(false);

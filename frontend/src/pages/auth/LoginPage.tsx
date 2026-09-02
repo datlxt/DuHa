@@ -31,7 +31,7 @@ export function LoginPage() {
   return (
     <AuthLayout>
       <SupabaseSetupNotice />
-      <h1 className="text-2xl font-bold">Đăng nhập DuHa</h1>
+      <h1 className="text-2xl font-bold">Đăng nhập Showroom Dũng Hậu</h1>
       <p className="mt-2 text-sm text-muted">Tiếp tục tạo phối cảnh gạch cho khách hàng của bạn.</p>
       <form onSubmit={submit} className="mt-6 space-y-4">
         <label className="label">Email</label>
