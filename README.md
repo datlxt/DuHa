@@ -1,149 +1,181 @@
-# DuHa - AI phối cảnh gạch
+# DuHa — AI phối cảnh gạch
 
-**Slogan:** Thử gạch hôm nay, thấy nhà ngày mai
+> **Slogan:** Thử gạch hôm nay, thấy nhà ngày mai
 
-DuHa là web SaaS hỗ trợ cửa hàng gạch ốp lát tạo phối cảnh minh họa từ ảnh phòng mộc và ảnh mẫu gạch. Frontend chính thức hiện nằm trong `src/`, chạy bằng React + TypeScript + Vite và lưu data thật bằng Supabase.
+DuHa là phần mềm web giúp **nhân viên cửa hàng gạch ốp lát** làm việc với khách:
+chụp ảnh phòng mộc + ảnh mẫu gạch → AI tạo ảnh phối cảnh phòng đã lát gạch, kèm
+quản lý **khách hàng, dự án, catalog gạch và báo giá**.
 
-## Trạng thái hiện tại
+---
 
-- Landing page, login, register, forgot password.
-- Dashboard có route protection.
-- Supabase Auth cho đăng nhập, đăng ký, đăng xuất.
-- Supabase Database lưu `profiles`, `customers`, `tiles`, `projects`, `quotations`.
-- Supabase Storage lưu ảnh trong bucket `duha-images`.
-- AI image generation vẫn mock, chưa gọi API render thật.
-- Chưa có backend riêng ở giai đoạn này.
+## 1. Ai dùng DuHa?
 
-## Chạy frontend
+DuHa là **công cụ nội bộ của cửa hàng**:
 
-```bash
-npm install
-npm run dev
-```
+- **Nhân viên/chủ cửa hàng** là người *đăng nhập* và sử dụng toàn bộ tính năng.
+- **Khách mua gạch** *không cần tài khoản*. Nhân viên mở phối cảnh trên máy/điện
+  thoại cho khách xem trực tiếp ngay tại cửa hàng.
+- Mỗi tài khoản cửa hàng chỉ thấy dữ liệu của chính mình (được Supabase bảo vệ
+  bằng Row Level Security — RLS).
 
-Mở:
+---
+
+## 2. Công nghệ dùng trong dự án
+
+DuHa **không dùng Python** (bản Python/Streamlit cũ đã bỏ). Stack hiện tại là bộ
+công cụ web phổ biến và dễ bảo trì nhất hiện nay:
+
+| Thành phần | Công nghệ | Vai trò |
+|---|---|---|
+| Giao diện | **TypeScript + React** (Vite) | Toàn bộ màn hình người dùng |
+| Giao diện — style | **Tailwind CSS** | Bố cục, màu sắc |
+| Backend | **Supabase** | Database + Đăng nhập + Lưu ảnh (managed, không cần tự dựng server) |
+| Database | **PostgreSQL** (do Supabase quản lý) | Lưu khách hàng, dự án, gạch, báo giá |
+| Tạo ảnh AI | **TypeScript** (Supabase Edge Function) | Gọi OpenAI để render phối cảnh |
+
+**Vì sao chọn stack này?** React + TypeScript là công nghệ web phổ biến nhất
+thế giới → nhiều tài liệu, dễ thuê người bảo trì về sau. Supabase lo sẵn phần
+khó và nhạy cảm nhất (đăng nhập, bảo mật dữ liệu, lưu file) nên bạn không phải
+tự viết server. Đây là lựa chọn an toàn và tiết kiệm nhất để giao cho khách dùng
+thật.
+
+---
+
+## 3. Cấu trúc thư mục
 
 ```text
-http://localhost:5173
+DuHa/
+├─ frontend/              # Ứng dụng React (giao diện) → deploy lên Vercel
+│  ├─ src/                #   Mã nguồn chính
+│  │  ├─ pages/           #     Các trang: landing, login, dashboard, projects...
+│  │  ├─ components/      #     Thành phần giao diện dùng lại
+│  │  ├─ services/        #     Gọi Supabase (customers, projects, quotations, AI...)
+│  │  ├─ contexts/        #     AuthContext — quản lý đăng nhập
+│  │  └─ lib/             #     Kết nối Supabase, tiện ích
+│  └─ .env.example        #   Mẫu biến môi trường (chỉ chứa key công khai)
+│
+├─ supabase/              # "Backend" — do Supabase quản lý, không cần dựng server
+│  ├─ migrations/         #   File SQL tạo bảng, phân quyền, bucket ảnh
+│  └─ functions/          #   Hàm AI tạo phối cảnh (generate-visualization)
+│
+├─ docs/                  # Tài liệu
+│  ├─ DEPLOYMENT.md       #   Hướng dẫn deploy đầy đủ
+│  └─ DEVELOPMENT_PLAN.md #   Kế hoạch phát triển
+│
+├─ vercel.json            # Cấu hình deploy Vercel (chỉ cần import repo là chạy)
+├─ compose.yaml           # Chạy dev bằng Docker (tùy chọn)
+└─ Makefile               # Lệnh tắt: make dev / build / deploy...
 ```
 
-Build kiểm tra TypeScript:
+---
 
+## 4. Chạy thử trên máy của bạn
+
+Cần cài sẵn: **[Node.js 20+](https://nodejs.org)** và một tài khoản
+**[Supabase](https://supabase.com)** (miễn phí).
+
+### Bước 1 — Tạo project Supabase và lấy khóa
+Vào supabase.com → New project. Sau đó vào **Settings → API**, copy 2 giá trị:
+- **Project URL** (dạng `https://xxxx.supabase.co`)
+- **anon public key**
+
+### Bước 2 — Tạo file cấu hình
 ```bash
-npm run build
+cp frontend/.env.example frontend/.env
 ```
-
-## Cấu hình Supabase
-
-### 1. Tạo Supabase project
-
-Trong Supabase dashboard, lấy:
-
-- Project URL
-- Anon public key
-
-### 2. Tạo file `.env`
-
-Tạo file `.env` ở root project:
-
+Mở `frontend/.env` và dán 2 giá trị vừa lấy vào:
 ```env
-VITE_SUPABASE_URL=https://xxxxx.supabase.co
-VITE_SUPABASE_ANON_KEY=your_anon_key
-
-# Server-only, để chuẩn bị cho AI render thật sau này.
-# Không đặt tên VITE_OPENAI_API_KEY vì key VITE_* sẽ lộ ra browser.
-OPENAI_API_KEY=your_openai_api_key
+VITE_SUPABASE_URL=https://xxxx.supabase.co
+VITE_SUPABASE_ANON_KEY=dán_anon_key_vào_đây
 ```
 
-Không commit `.env` thật. Sau khi sửa `.env`, restart `npm run dev`.
+### Bước 3 — Tạo bảng dữ liệu trong Supabase
+Vào Supabase → **SQL Editor** → New query, rồi copy–paste và chạy lần lượt nội
+dung 2 file:
+1. `supabase/migrations/20250101000000_init.sql`
+2. `supabase/migrations/20250101000100_storage.sql`
 
-Lưu ý quan trọng: frontend React/Vite chỉ đọc biến bắt đầu bằng `VITE_`. Vì vậy `OPENAI_API_KEY` có thể nằm trong `.env` để chuẩn bị, nhưng app frontend hiện tại không và không nên gọi OpenAI trực tiếp từ browser. Khi làm AI render thật, cần gọi OpenAI từ backend/server hoặc Supabase Edge Function để giữ key an toàn.
+### Bước 4 — Cài đặt và chạy
+```bash
+npm --prefix frontend ci     # cài thư viện (chạy 1 lần)
+npm --prefix frontend run dev
+```
+Mở trình duyệt: **http://localhost:5173** → bấm Đăng ký để tạo tài khoản cửa
+hàng đầu tiên và bắt đầu dùng.
 
-### 3. Chạy database schema
+> Muốn kiểm tra Supabase đã cấu hình đúng chưa:
+> `npm --prefix frontend run check:supabase`
 
-Mở Supabase SQL Editor và chạy:
+---
 
-```text
-supabase/schema.sql
+## 5. Bật tính năng tạo ảnh AI (tùy chọn)
+
+Tính năng render phối cảnh dùng OpenAI, chạy trong một **Supabase Edge Function**
+(để key OpenAI luôn nằm ở server, không lộ ra trình duyệt). Cần
+[Supabase CLI](https://supabase.com/docs/guides/cli):
+
+```bash
+supabase link --project-ref <mã_project_của_bạn>
+supabase secrets set OPENAI_API_KEY=sk-...        # key OpenAI của bạn
+supabase functions deploy generate-visualization
 ```
 
-File này tạo bảng, RLS policies và trigger tạo `profiles` khi user đăng ký.
+---
 
-### 4. Chạy storage setup
+## 6. Đưa lên mạng cho cửa hàng dùng (deploy)
 
-Tiếp tục chạy:
+Deploy **cực đơn giản**: frontend lên Vercel, backend đã nằm sẵn trên Supabase.
 
-```text
-supabase/storage.sql
+1. Đẩy code lên GitHub.
+2. Vào [vercel.com/new](https://vercel.com/new) → import repo này. Vercel tự đọc
+   `vercel.json`, **không cần chỉnh gì thêm**.
+3. Trong Vercel → Settings → Environment Variables, thêm:
+   - `VITE_SUPABASE_URL`
+   - `VITE_SUPABASE_ANON_KEY`
+4. Bấm **Deploy**. Xong — cửa hàng truy cập bằng link `https://<tên>.vercel.app`.
+
+Từ đó về sau, mỗi lần `git push` Vercel sẽ tự cập nhật. Hướng dẫn chi tiết từng
+bước (kèm ảnh chụp thao tác): [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
+
+---
+
+## 7. Bảo mật cho mô hình nội bộ
+
+Vì DuHa chỉ dành cho cửa hàng, nên **khóa đăng ký công khai** để người lạ không
+tự tạo tài khoản trên hệ thống của bạn:
+
+- Cách khuyến nghị: Supabase → **Authentication → Providers → Email** → tắt
+  **"Allow new users to sign up"**. Sau đó bạn tự tạo tài khoản nhân viên trong
+  Supabase → Authentication → Users → *Add user*.
+- Dữ liệu giữa các tài khoản đã được cô lập bằng RLS, nên kể cả khi bật đăng ký,
+  người khác cũng không xem được dữ liệu của cửa hàng bạn.
+- **Không bao giờ** đặt key bí mật (OpenAI key, `service_role` key) vào file
+  `frontend/.env` hay biến `VITE_*` — chúng sẽ lộ ra trình duyệt. Key bí mật chỉ
+  đặt trong **Supabase secrets**.
+
+---
+
+## 8. Các trang trong app
+
+`/` giới thiệu · `/login` đăng nhập · `/register` đăng ký · `/forgot-password`
+quên mật khẩu · `/app` bảng điều khiển · `/app/create` tạo phối cảnh ·
+`/app/projects` danh sách dự án · `/app/projects/:id` chi tiết ·
+`/app/catalog` catalog gạch · `/app/customers` khách hàng ·
+`/app/quotations` báo giá · `/app/settings` cài đặt.
+Các trang `/app/*` bắt buộc đăng nhập.
+
+---
+
+## 9. Lệnh hay dùng
+
+```bash
+make dev              # chạy dev trên máy (hot reload)
+make dev-docker       # chạy dev bằng Docker (không cần cài Node)
+make build            # build bản production
+make deploy           # deploy lên Vercel
+make db-push          # áp migration lên Supabase (cần Supabase CLI)
+make functions-deploy # deploy hàm AI lên Supabase
 ```
 
-File này tạo bucket:
-
-```text
-duha-images
-```
-
-Và policy cho upload/read ảnh theo cấu trúc:
-
-```text
-rooms/{user_id}/{timestamp}-{file_name}
-tiles/{user_id}/{timestamp}-{file_name}
-results/{user_id}/{timestamp}-{file_name}
-```
-
-## Routes
-
-- `/` Landing page
-- `/login` Đăng nhập
-- `/register` Đăng ký
-- `/forgot-password` Quên mật khẩu
-- `/app` Dashboard
-- `/app/create` Tạo phối cảnh
-- `/app/projects` Dự án đã lưu
-- `/app/projects/:id` Chi tiết dự án
-- `/app/catalog` Catalog gạch
-- `/app/customers` Khách hàng
-- `/app/quotations` Báo giá
-- `/app/settings` Cài đặt
-
-Các route `/app/*` yêu cầu đăng nhập Supabase.
-
-## Nếu register đang lỗi
-
-Kiểm tra theo thứ tự:
-
-1. Có file `.env` thật chưa.
-2. `VITE_SUPABASE_URL` có dạng `https://xxxxx.supabase.co` chưa.
-3. `VITE_SUPABASE_ANON_KEY` có phải anon key thật chưa.
-4. Đã chạy `supabase/schema.sql` chưa.
-5. Đã chạy `supabase/storage.sql` chưa.
-6. Nếu Supabase bật Confirm email, hãy xác nhận email trước khi login hoặc tạm tắt Confirm email khi dev local.
-
-App hiện đã hiển thị lỗi Supabase thật thay vì chỉ báo lỗi chung chung.
-
-## Phần vẫn mock
-
-- AI render ảnh thật.
-- Result image tạm dùng ảnh phòng upload làm preview.
-- Google login button.
-- Plan/quota.
-- PDF báo giá và gửi khách.
-
-## Plan phát triển
-
-Xem chi tiết tại:
-
-```text
-docs/DEVELOPMENT_PLAN.md
-```
-
-## Streamlit MVP cũ
-
-Repo vẫn còn bản Python/Streamlit cũ:
-
-- `app.py`
-- `services/`
-- `Dockerfile`
-- `docker-compose.yml`
-
-Bản này chỉ là mock preview bằng Pillow. Frontend đang phát triển chính là app React trong `src/`.
+Tài liệu thêm: [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) ·
+[docs/DEVELOPMENT_PLAN.md](docs/DEVELOPMENT_PLAN.md)

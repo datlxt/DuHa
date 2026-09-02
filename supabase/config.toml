@@ -1,0 +1,9 @@
+# Supabase CLI config. Set `project_id` to your project ref (Dashboard ->
+# Settings -> General -> Reference ID), or run `supabase link --project-ref <ref>`
+# which fills it in for you. Then:
+#   supabase db push                              # apply supabase/migrations/*
+#   supabase functions deploy generate-visualization
+project_id = "your-project-ref"
+
+[functions.generate-visualization]
+verify_jwt = true

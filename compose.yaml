@@ -1,0 +1,28 @@
+name: duha
+
+# Local development stack. Production runs on Vercel (frontend) + Supabase
+# (Postgres, Auth, Storage, Edge Functions) — see docs/DEPLOYMENT.md.
+#
+# This file runs the Vite dev server (hot reload) in a container so the whole
+# team develops against the same Node version without installing anything but
+# Docker. It talks to your hosted Supabase project via the VITE_* vars below,
+# which it reads from a root `.env` (copy frontend/.env.example).
+
+services:
+  frontend:
+    image: node:22-alpine
+    working_dir: /app
+    command: sh -c "npm ci && npm run dev -- --host 0.0.0.0"
+    environment:
+      VITE_SUPABASE_URL: ${VITE_SUPABASE_URL:-}
+      VITE_SUPABASE_ANON_KEY: ${VITE_SUPABASE_ANON_KEY:-}
+    volumes:
+      - ./frontend:/app
+      # Keep container node_modules isolated from the host mount.
+      - frontend_node_modules:/app/node_modules
+    ports:
+      - "${HTTP_PORT:-5173}:5173"
+    restart: unless-stopped
+
+volumes:
+  frontend_node_modules:

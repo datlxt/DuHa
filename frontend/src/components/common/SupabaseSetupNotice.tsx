@@ -16,7 +16,7 @@ export function SupabaseSetupNotice() {
             ))}
           </ul>
           <p className="mt-2">
-            Tạo file <code>.env</code>, điền URL và anon key thật, chạy SQL trong <code>supabase/schema.sql</code>, rồi restart <code>npm run dev</code>.
+            Tạo file <code>.env</code>, điền URL và anon key thật, chạy SQL trong <code>supabase/migrations/</code>, rồi restart <code>npm run dev</code>.
           </p>
         </div>
       </div>

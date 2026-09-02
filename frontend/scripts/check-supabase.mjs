@@ -54,7 +54,7 @@ for (const table of ["profiles", "customers", "tiles", "projects", "quotations"]
 await checkStorage();
 
 if (failed) {
-  console.log("\nRun supabase/schema.sql and supabase/storage.sql in Supabase SQL Editor, then retry.");
+  console.log("\nRun the SQL in supabase/migrations/ (or `supabase db push`) in your Supabase project, then retry.");
   process.exit(1);
 }
 

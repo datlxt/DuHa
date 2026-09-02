@@ -1,0 +1,11 @@
+# SPA static server for the self-hosted image. React Router owns client-side
+# routing, so unknown paths fall back to index.html instead of 404.
+{$SITE_ADDRESS::80} {
+    encode zstd gzip
+
+    handle {
+        root * /srv
+        try_files {path} /index.html
+        file_server
+    }
+}

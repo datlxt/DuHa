@@ -56,15 +56,15 @@ OPENAI_API_KEY=your_openai_api_key
 4. Chạy SQL:
 
 ```text
-supabase/schema.sql
-supabase/storage.sql
+supabase/migrations/20250101000000_init.sql
+supabase/migrations/20250101000100_storage.sql
 ```
 
-5. Cài dependency và chạy:
+5. Cài dependency và chạy (frontend nằm trong `frontend/`):
 
 ```bash
-npm install
-npm run dev
+npm --prefix frontend ci
+npm --prefix frontend run dev
 ```
 
 6. Test flow:
@@ -94,7 +94,7 @@ Register hoặc load data có thể báo `relation profiles does not exist` ho�
 
 ### Chưa chạy Storage SQL
 
-Upload ảnh có thể báo lỗi policy hoặc bucket. Chạy `supabase/storage.sql`.
+Upload ảnh có thể báo lỗi policy hoặc bucket. Chạy migration storage trong `supabase/migrations/`.
 
 ### Supabase bật Confirm email
 

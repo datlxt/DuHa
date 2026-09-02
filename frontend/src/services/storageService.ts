@@ -64,7 +64,7 @@ async function uploadImage(file: File, userId: string, folder: "rooms" | "tiles"
 
   if (listError) {
     throw new Error(
-      `Không thể truy cập bucket ${BUCKET} trước khi upload: ${listError.message}. Hãy chạy lại supabase/storage.sql và đăng nhập lại.`,
+      `Không thể truy cập bucket ${BUCKET} trước khi upload: ${listError.message}. Hãy chạy lại migration storage trong supabase/migrations/ và đăng nhập lại.`,
     );
   }
 
