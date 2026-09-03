@@ -192,40 +192,32 @@ function tileReferenceInstructions(project: Record<string, unknown>) {
   const isRect = Boolean(width && height && !isSquare && ratio < 2.6);
 
   return [
-    "Tile fidelity is critical.",
-    "Use the uploaded tile sample for material color, texture, grain, tone variation and surface finish.",
-    "The uploaded tile image is a required product material swatch, not a moodboard or loose style inspiration.",
-    "Copy the tile's visual identity as closely as possible: same dominant hue, same grain density, same grain thickness, same vein/wood-fiber rhythm, same contrast and same finish.",
-    "If the tile sample contains visible vertical strip/plank bands, alternating light and dark wood panels, or printed block seams, preserve that exact striped/block rhythm in the rendered floor.",
-    "Do not convert a striped/blocky wood-look sample into a smooth generic wood floor or a uniform oak texture.",
-    "Keep the sample's pale blond wood tone, vertical fiber lines, alternating panel widths and subtle rectangular printed seams when they are visible in the uploaded sample.",
-    "Texture fidelity is critical: preserve the distinctive grain lines, color bands, contrast, knots, clouding and direction from the uploaded tile sample.",
-    "Do not replace the uploaded tile sample with a generic oak texture, generic marble, generic stone or another catalog material.",
-    "Do not invent a smoother, cleaner or more expensive-looking material if it differs from the uploaded product sample.",
-    "The generated floor should look like the same product as the uploaded sample after perspective projection.",
-    "The chosen tile size metadata controls the physical tile module shape and grout grid, even if the sample image shows a different layout.",
-    "Do not blindly copy the sample image layout if it conflicts with the chosen tile size.",
+    // ---- HIGHEST PRIORITY: separate MATERIAL (from sample) vs GRID/JOINTS (from selected size) ----
+    "TILE RULE 1 — GRID: The floor grout grid and joint pattern MUST match the SELECTED tile size below, NOT the way tiles are arranged in the sample photo.",
+    "TILE RULE 2 — MATERIAL: The uploaded tile photo defines ONLY the material look — its color, wood-grain or stone-vein pattern, tone variation and surface finish. IGNORE how the sample photo lays out its tiles (planks, staggered joints, brick-bond, strip widths).",
+    "Do NOT copy the joint layout, plank arrangement or staggered seams from the sample photo. Take the same MATERIAL and re-lay it into the selected tile module and a regular grid.",
+    size ? `The user selected tile size ${size} cm. Every floor tile is exactly this module; the grout lines form this module repeated across the floor.` : "",
+    // ---- size-specific grid (driven by the selected size, deterministic) ----
     isSquare
-      ? `The selected size ${size} is a square tile. Render a clean square tile grid with equal width and height modules, straight grout lines in both directions, and realistic square tile count across the floor. Use the uploaded sample as the printed material motif inside each square tile. If the sample contains plank/stripe graphics, keep those graphics printed inside the square tile surface, but keep the outer grout grid square. Do not render the entire floor as long loose planks, narrow strips, random small rectangles, broken tile fragments, herringbone, or wood floor boards.`
+      ? `SELECTED SIZE ${size} IS SQUARE. Lay the floor as a straight SQUARE grid: equal-sided tiles, grout lines running straight in BOTH directions forming squares. Print the material (wood grain / stone vein) INSIDE each square tile. ABSOLUTELY DO NOT render long planks, narrow strips, staggered wood boards, brick-bond joints, herringbone or mixed plank blocks — even if the sample photo shows planks. Every tile is a square of the same size.`
       : "",
     isPlank
-      ? `The selected size ${size} cm is a long PLANK/strip tile. Render long narrow rectangular planks with realistic staggered joints following the room perspective.`
+      ? `SELECTED SIZE ${size} cm IS A LONG PLANK/strip tile. Render long narrow rectangular planks with realistic staggered joints following the room perspective.`
       : "",
     isRect
-      ? `The selected size ${size} cm is a LARGE RECTANGULAR floor tile (about ${width}x${height} cm). Render big rectangular tiles laid in a regular grid with the long edge running along the room; only a few large tiles span the floor, separated by wide, straight, evenly spaced grout lines. Do NOT render small squares, narrow strips, mosaic pieces or wood-plank boards.`
+      ? `SELECTED SIZE ${size} cm IS A LARGE RECTANGULAR tile (about ${width}x${height} cm). Render big rectangular tiles in a regular grid with the long edge running along the room; only a few large tiles span the floor, with wide, straight, evenly spaced grout lines. Do NOT render small squares, narrow strips, mosaic or wood-plank boards.`
       : "",
     !isSquare && !isPlank && !isRect
-      ? "Preserve the selected tile aspect ratio and repeat it as individual tiles with visible grout joints."
+      ? "Repeat the selected tile module across the floor with regular, straight grout joints."
       : "",
-    "The tile pattern must repeat across the floor with realistic scale and perspective, not as one stretched texture.",
-    "Every visible tile module must keep the same selected size and aspect ratio across the floor, only changing by perspective distance.",
-    "Avoid mismatched small tiles in the middle of the floor; grout spacing must be regular and aligned.",
-    "Wood grain or stone veins should follow the uploaded material direction naturally inside each tile, but tile seams must follow the selected module grid.",
-    "For square tiles using a wood-grain sample, crop/fit the wood-grain material inside each square tile module; do not invent long wood planks or mixed plank blocks.",
-    "Estimate real-world tile count from the floor area and the provided tile size; avoid oversized or undersized tiles.",
-    "Respect the tile's real module size when drawing grout spacing and plank/slab length.",
-    "Grout joints must be visible enough to communicate tile size and layout, but still realistic.",
-    size ? `The tile size ${size} is in CENTIMETERS (real-world). Render tiles at correct physical scale relative to the room, walls, doors and furniture: large-format tiles must clearly look large, with only a few modules across the floor.` : "",
+    // ---- material fidelity (copy look, not layout) ----
+    "Material fidelity: copy the sample's dominant color, grain/vein direction and density, contrast, tone variation, knots/clouding and finish as closely as possible.",
+    "Do not replace the sample with a generic oak, generic marble or generic stone, and do not make it smoother, cleaner or more expensive-looking than the sample.",
+    "The wood grain or stone vein runs naturally inside each tile module, but the tile-to-tile seams follow the SELECTED grid, not the sample's original seams.",
+    // ---- scale / realism ----
+    "Estimate real-world tile count from the floor area and the selected size; grout spacing is regular and aligned; tiles change only by perspective distance, never as one stretched texture.",
+    size ? `The tile size ${size} is in CENTIMETERS (real-world); render tiles at correct physical scale relative to the room, walls, doors and furniture.` : "",
+    "Grout joints must be visible enough to read the tile size and layout, but still realistic.",
     surfaceFinishInstruction(surface),
     code ? `Catalog/manual tile code: ${code}.` : "",
     size ? `Catalog tile size to respect: ${size} cm.` : "",
@@ -234,13 +226,75 @@ function tileReferenceInstructions(project: Record<string, unknown>) {
   ].filter(Boolean);
 }
 
-function buildPrompt(project: Record<string, unknown>) {
+// Stage 1: read the actual room + tile photos with an OpenAI vision model and return concrete
+// facts (camera direction, windows/doors, ceiling, tile grain/size) to ground the image prompt.
+// Resilient: any failure returns "" so generation still proceeds with the base prompt.
+async function analyzeInputs(roomUrl: string, tileUrl: string, project: Record<string, unknown>): Promise<string> {
+  const model = Deno.env.get("OPENAI_ANALYSIS_MODEL") ?? "gpt-4o-mini";
+  const chosenSize = textValue(project.tile_size_text) || textValue(project.tile_size);
+  const chosenSurface = textValue(project.tile_surface_text) || textValue(project.tile_surface);
+  const timeoutMs = Number(Deno.env.get("OPENAI_ANALYSIS_TIMEOUT_MS") ?? "40000");
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    const response = await fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${requiredEnv("OPENAI_API_KEY")}`,
+        "Content-Type": "application/json",
+      },
+      signal: controller.signal,
+      body: JSON.stringify({
+        model,
+        temperature: 0.2,
+        max_tokens: 350,
+        messages: [
+          {
+            role: "system",
+            content:
+              "You are an interior-architecture analyst. Report ONLY concrete visible facts an image editor must preserve. No styling advice, no opinions.",
+          },
+          {
+            role: "user",
+            content: [
+              {
+                type: "text",
+                text:
+                  "PHOTO 1 = the ROOM to renovate. PHOTO 2 = the FLOOR TILE sample. Answer as a short bullet list under two headings, under 140 words total.\n" +
+                  "ROOM: camera height and angle, viewing direction, exact count and position of every window and door (e.g. 'one tall window on the right wall', 'door on the far left'), ceiling type/height feel, wall layout, rough proportions (narrow/wide, long/short), and whether the room is bare/unfinished or already furnished.\n" +
+                  `TILE: material look (marble/stone/wood/cement/plain), vein or grain direction, dominant color, and surface finish (glossy/matte). The user selected tile size ${chosenSize || "unknown"} and surface ${chosenSurface || "unknown"}.\n` +
+                  `IMPORTANT: also state how the tiles are ARRANGED in the sample photo (square grid / long planks / staggered / brick-bond). If that arrangement does NOT match the selected size shape (e.g. sample shows planks but selected size is a square like 60x60), add one final line exactly: "LAYOUT OVERRIDE: ignore the sample's plank/joint arrangement; lay the floor as the selected ${chosenSize || "size"} module and use the sample only for material/grain/color."`,
+              },
+              { type: "image_url", image_url: { url: roomUrl } },
+              { type: "image_url", image_url: { url: tileUrl } },
+            ],
+          },
+        ],
+      }),
+    });
+
+    if (!response.ok) return "";
+    const data = await response.json();
+    const text = data?.choices?.[0]?.message?.content;
+    return typeof text === "string" ? text.trim() : "";
+  } catch (_error) {
+    return "";
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+function buildPrompt(project: Record<string, unknown>, analysis = "") {
   const style = textValue(project.style);
   const roomType = textValue(project.room_type) || "room";
   const mode = normalizeRenderMode(project.render_mode);
 
   const shared = [
     "STRICT SOURCE-LOCKED EDIT.",
+    analysis
+      ? `OBSERVED FACTS from the actual uploaded photos — you MUST respect these exactly (they describe the real room and the real tile):\n${analysis}`
+      : "",
     "Use the uploaded room image as the locked base image and the uploaded tile image as the exact floor tile reference.",
     "Preserve the exact source crop, aspect ratio, camera position, camera angle, focal-length feel, vanishing points and perspective.",
     "The output must keep the same landscape/portrait orientation and the same relative framing as the source room photo.",
@@ -333,55 +387,67 @@ async function fetchBlob(url: string, label: string) {
 }
 
 async function callOpenAI(roomBlob: Blob, tileBlob: Blob, prompt: string, model: string, count = 1) {
-  const form = new FormData();
-  form.append("model", model);
-  form.append("prompt", prompt);
-  form.append("size", Deno.env.get("OPENAI_IMAGE_SIZE") ?? "auto");
-  form.append("quality", Deno.env.get("OPENAI_IMAGE_QUALITY") ?? "medium");
   // input_fidelity=high forces gpt-image to keep the source room faithfully (walls, ceiling,
-  // window positions, proportions) instead of reimagining a new room. Set OPENAI_INPUT_FIDELITY
-  // to empty to disable if a model rejects the parameter.
+  // window positions, proportions) instead of reimagining a new room. Some models may reject the
+  // parameter, so we retry once WITHOUT it on a fast failure. Set OPENAI_INPUT_FIDELITY empty to disable.
   const inputFidelity = Deno.env.get("OPENAI_INPUT_FIDELITY") ?? "high";
-  if (inputFidelity) form.append("input_fidelity", inputFidelity);
-  form.append("n", String(count));
-  form.append("image[]", roomBlob, "room.png");
-  form.append("image[]", tileBlob, "tile.png");
-
   const timeoutMs = Number(Deno.env.get("OPENAI_IMAGE_TIMEOUT_MS") ?? "115000");
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), timeoutMs);
 
-  let response: Response;
+  async function attempt(useFidelity: boolean) {
+    const form = new FormData();
+    form.append("model", model);
+    form.append("prompt", prompt);
+    form.append("size", Deno.env.get("OPENAI_IMAGE_SIZE") ?? "auto");
+    form.append("quality", Deno.env.get("OPENAI_IMAGE_QUALITY") ?? "medium");
+    if (useFidelity && inputFidelity) form.append("input_fidelity", inputFidelity);
+    form.append("n", String(count));
+    form.append("image[]", roomBlob, "room.png");
+    form.append("image[]", tileBlob, "tile.png");
+
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), timeoutMs);
+    let response: Response;
+    try {
+      response = await fetch("https://api.openai.com/v1/images/edits", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${requiredEnv("OPENAI_API_KEY")}` },
+        body: form,
+        signal: controller.signal,
+      });
+    } catch (error) {
+      if (error instanceof DOMException && error.name === "AbortError") {
+        throw new Error(`TIMEOUT: AI render (${model}) quá lâu nên đã tự dừng.`);
+      }
+      throw error;
+    } finally {
+      clearTimeout(timeout);
+    }
+
+    const payload = await response.json();
+    if (!response.ok) {
+      throw new Error(payload?.error?.message ?? `OpenAI image generation failed (${model}).`);
+    }
+    const items: Array<{ b64?: string; url?: string }> = (payload?.data ?? [])
+      .map((item: { b64_json?: string; url?: string }) =>
+        item?.b64_json ? { b64: item.b64_json } : item?.url ? { url: item.url } : null,
+      )
+      .filter((item: { b64?: string; url?: string } | null): item is { b64?: string; url?: string } => item !== null);
+    if (!items.length) throw new Error(`OpenAI (${model}) did not return an image.`);
+    return { images: items };
+  }
+
   try {
-    response = await fetch("https://api.openai.com/v1/images/edits", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${requiredEnv("OPENAI_API_KEY")}`,
-      },
-      body: form,
-      signal: controller.signal,
-    });
+    return await attempt(true);
   } catch (error) {
-    if (error instanceof DOMException && error.name === "AbortError") {
-      throw new Error("AI render quá lâu nên đã tự dừng trước khi Edge Function timeout. Hãy thử lại với ảnh nhỏ hơn hoặc ảnh rõ nhưng nhẹ hơn.");
+    const message = error instanceof Error ? error.message : String(error);
+    // Retry without input_fidelity only on a FAST failure (e.g. unsupported parameter), not on a
+    // timeout (that would double the wait). This keeps both variants alive when a model dislikes the param.
+    if (inputFidelity && !message.startsWith("TIMEOUT")) {
+      console.error(`callOpenAI ${model} failed, retrying without input_fidelity: ${message}`);
+      return await attempt(false);
     }
     throw error;
-  } finally {
-    clearTimeout(timeout);
   }
-
-  const payload = await response.json();
-  if (!response.ok) {
-    throw new Error(payload?.error?.message ?? "OpenAI image generation failed.");
-  }
-
-  const items: Array<{ b64?: string; url?: string }> = (payload?.data ?? [])
-    .map((item: { b64_json?: string; url?: string }) =>
-      item?.b64_json ? { b64: item.b64_json } : item?.url ? { url: item.url } : null,
-    )
-    .filter((item: { b64?: string; url?: string } | null): item is { b64?: string; url?: string } => item !== null);
-  if (!items.length) throw new Error("OpenAI did not return an image.");
-  return { images: items };
 }
 
 function base64ToBytes(base64: string) {
@@ -464,7 +530,9 @@ Deno.serve(async (req) => {
       .split(",")
       .map((m: string) => m.trim())
       .filter((m: string) => m.length > 0);
-    const prompt = buildPrompt(projectForGeneration);
+    // Stage 1 — analyse the real photos first, then ground the image prompt in those facts.
+    const analysis = await analyzeInputs(project.room_image_url, project.tile_image_url, projectForGeneration);
+    const prompt = buildPrompt(projectForGeneration, analysis);
     const adviceText = fallbackAdvice(projectForGeneration);
 
     // Render song song để 2 model không cộng dồn thời gian gây timeout. Model nào lỗi thì
@@ -507,6 +575,9 @@ Deno.serve(async (req) => {
       usedModels.push(usedModel);
     }
 
+    if (errors.length) {
+      console.error(`Render: ${resultUrls.length}/${models.length} models succeeded. Failures: ${JSON.stringify(errors)}`);
+    }
     if (!resultUrls.length) throw new Error(errors[0] ?? "No generated image returned.");
 
     const { data: updatedProject, error: updateError } = await supabase
@@ -527,7 +598,7 @@ Deno.serve(async (req) => {
       .single();
 
     if (updateError) throw new Error(updateError.message);
-    return json({ project: updatedProject });
+    return json({ project: updatedProject, variants: resultUrls.length, warnings: errors });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown error";
     try {

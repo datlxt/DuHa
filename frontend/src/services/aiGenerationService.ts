@@ -2,7 +2,13 @@ import { supabase } from "../lib/supabase";
 import { requireSupabaseConfigured, supabaseEnv } from "../lib/env";
 import type { Project } from "../types";
 
-export async function generateVisualization(projectId: string, signal?: AbortSignal): Promise<Project> {
+export type GenerateResult = {
+  project: Project;
+  variants?: number;
+  warnings: string[];
+};
+
+export async function generateVisualization(projectId: string, signal?: AbortSignal): Promise<GenerateResult> {
   requireSupabaseConfigured();
 
   const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
@@ -33,5 +39,9 @@ export async function generateVisualization(projectId: string, signal?: AbortSig
 
   if (!data?.project) throw new Error("AI render did not return a project result.");
 
-  return data.project as Project;
+  return {
+    project: data.project as Project,
+    variants: typeof data.variants === "number" ? data.variants : undefined,
+    warnings: Array.isArray(data.warnings) ? (data.warnings as string[]) : [],
+  };
 }

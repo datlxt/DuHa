@@ -257,9 +257,14 @@ export function CreateVisualizationPage() {
           ? "AI đang hoàn thiện nội thất, lát gạch và render phối cảnh. Vui lòng chờ..."
           : "AI đang thay gạch nền và giữ nguyên không gian hiện có. Vui lòng chờ...",
       );
-      const generated = await generateVisualization(saved.id, controller.signal);
+      const { project: generated, warnings } = await generateVisualization(saved.id, controller.signal);
       setProject(generated);
-      setStatusMessage("Đã render AI thành công.");
+      const count = generated.result_image_urls?.length ?? 1;
+      setStatusMessage(
+        count < 2 && warnings.length
+          ? `Đã render nhưng chỉ tạo được ${count} mẫu. Lý do: ${warnings.join(" | ")}`
+          : `Đã render AI thành công${count > 1 ? ` (${count} mẫu)` : ""}.`,
+      );
     } catch (caughtError) {
       if (isAbort(caughtError)) {
         setStatusMessage("Đã huỷ. AI có thể vẫn hoàn tất ở nền — kết quả sẽ hiện trong dự án khi xong.");
@@ -281,9 +286,14 @@ export function CreateVisualizationPage() {
     const controller = new AbortController();
     abortRef.current = controller;
     try {
-      const generated = await generateVisualization(project.id, controller.signal);
+      const { project: generated, warnings } = await generateVisualization(project.id, controller.signal);
       setProject(generated);
-      setStatusMessage("Đã tạo phương án mới.");
+      const count = generated.result_image_urls?.length ?? 1;
+      setStatusMessage(
+        count < 2 && warnings.length
+          ? `Đã tạo lại nhưng chỉ được ${count} mẫu. Lý do: ${warnings.join(" | ")}`
+          : `Đã tạo phương án mới${count > 1 ? ` (${count} mẫu)` : ""}.`,
+      );
     } catch (caughtError) {
       if (isAbort(caughtError)) {
         setStatusMessage("Đã huỷ. AI có thể vẫn hoàn tất ở nền — kết quả sẽ hiện trong dự án khi xong.");
