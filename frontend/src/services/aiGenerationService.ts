@@ -2,7 +2,7 @@ import { supabase } from "../lib/supabase";
 import { requireSupabaseConfigured, supabaseEnv } from "../lib/env";
 import type { Project } from "../types";
 
-export async function generateVisualization(projectId: string): Promise<Project> {
+export async function generateVisualization(projectId: string, signal?: AbortSignal): Promise<Project> {
   requireSupabaseConfigured();
 
   const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
@@ -18,6 +18,7 @@ export async function generateVisualization(projectId: string): Promise<Project>
       "Content-Type": "application/json",
     },
     body: JSON.stringify({ project_id: projectId }),
+    signal,
   });
 
   const text = await response.text();

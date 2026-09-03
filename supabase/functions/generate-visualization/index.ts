@@ -162,6 +162,20 @@ function wallCeilingInstructions(project: Record<string, unknown>) {
   ];
 }
 
+function surfaceFinishInstruction(surface: string): string {
+  const s = surface.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+  if (!s) return "";
+  // Glossy / polished / semi-polished finishes (bóng, men bóng, lappato, sugar, polished).
+  if (/(bong|gloss|polish|lappato|sugar|men bong)/.test(s)) {
+    return "SURFACE FINISH: high-gloss POLISHED tile. Render a smooth, reflective floor with soft mirror-like reflections of the windows, furniture and lights, plus clear specular highlights.";
+  }
+  // Matte / rough / satin finishes (mờ, mát, nhám, matt).
+  if (/(mo|matte|matt|nham|mat)/.test(s)) {
+    return "SURFACE FINISH: MATTE tile. Render a non-reflective floor with soft diffuse lighting and no mirror reflections or bright specular highlights.";
+  }
+  return `SURFACE FINISH: ${surface}. Reproduce this exact finish realistically on the floor.`;
+}
+
 function tileReferenceInstructions(project: Record<string, unknown>) {
   const size = textValue(project.tile_size_text) || textValue(project.tile_size);
   const surface = textValue(project.tile_surface_text) || textValue(project.tile_surface);
@@ -171,8 +185,11 @@ function tileReferenceInstructions(project: Record<string, unknown>) {
   const sizeParts = normalizedSize.match(/^(\d+(?:\.\d+)?)x(\d+(?:\.\d+)?)$/);
   const width = sizeParts ? Number(sizeParts[1]) : 0;
   const height = sizeParts ? Number(sizeParts[2]) : 0;
+  const ratio = width && height ? Math.max(width, height) / Math.max(1, Math.min(width, height)) : 1;
   const isSquare = Boolean(width && height && Math.abs(width - height) <= 2);
-  const isPlank = Boolean(width && height && Math.max(width, height) / Math.max(1, Math.min(width, height)) >= 2.2);
+  // Long narrow strips (15x90, 20x120...). 60x120 is ratio 2.0 -> handled as a large rectangular slab below.
+  const isPlank = Boolean(width && height && ratio >= 2.6);
+  const isRect = Boolean(width && height && !isSquare && ratio < 2.6);
 
   return [
     "Tile fidelity is critical.",
@@ -192,9 +209,12 @@ function tileReferenceInstructions(project: Record<string, unknown>) {
       ? `The selected size ${size} is a square tile. Render a clean square tile grid with equal width and height modules, straight grout lines in both directions, and realistic square tile count across the floor. Use the uploaded sample as the printed material motif inside each square tile. If the sample contains plank/stripe graphics, keep those graphics printed inside the square tile surface, but keep the outer grout grid square. Do not render the entire floor as long loose planks, narrow strips, random small rectangles, broken tile fragments, herringbone, or wood floor boards.`
       : "",
     isPlank
-      ? `The selected size ${size} is a plank tile. Render long rectangular planks with realistic staggered joints following the room perspective.`
+      ? `The selected size ${size} cm is a long PLANK/strip tile. Render long narrow rectangular planks with realistic staggered joints following the room perspective.`
       : "",
-    !isSquare && !isPlank
+    isRect
+      ? `The selected size ${size} cm is a LARGE RECTANGULAR floor tile (about ${width}x${height} cm). Render big rectangular tiles laid in a regular grid with the long edge running along the room; only a few large tiles span the floor, separated by wide, straight, evenly spaced grout lines. Do NOT render small squares, narrow strips, mosaic pieces or wood-plank boards.`
+      : "",
+    !isSquare && !isPlank && !isRect
       ? "Preserve the selected tile aspect ratio and repeat it as individual tiles with visible grout joints."
       : "",
     "The tile pattern must repeat across the floor with realistic scale and perspective, not as one stretched texture.",
@@ -205,8 +225,10 @@ function tileReferenceInstructions(project: Record<string, unknown>) {
     "Estimate real-world tile count from the floor area and the provided tile size; avoid oversized or undersized tiles.",
     "Respect the tile's real module size when drawing grout spacing and plank/slab length.",
     "Grout joints must be visible enough to communicate tile size and layout, but still realistic.",
+    size ? `The tile size ${size} is in CENTIMETERS (real-world). Render tiles at correct physical scale relative to the room, walls, doors and furniture: large-format tiles must clearly look large, with only a few modules across the floor.` : "",
+    surfaceFinishInstruction(surface),
     code ? `Catalog/manual tile code: ${code}.` : "",
-    size ? `Catalog tile size to respect: ${size}.` : "",
+    size ? `Catalog tile size to respect: ${size} cm.` : "",
     surface ? `Catalog tile surface/finish: ${surface}.` : "",
     color ? `Catalog tile main color: ${color}.` : "",
   ].filter(Boolean);
@@ -225,6 +247,9 @@ function buildPrompt(project: Record<string, unknown>) {
     "All windows and doors must remain in the same relative pixel location, with the same size, shape and wall relationship as in the source photo.",
     "Preserve the exact room architecture: wall positions, wall corners, floor boundary, ceiling shape, beams, columns, doors, windows, openings, staircase and exterior view through windows.",
     "Do not move, resize, remove, cover, crop out or invent windows, doors, walls, beams, columns, stairs, openings or room boundaries.",
+    "Keep the exact ceiling: same ceiling height, shape and beams. Do not add tray ceilings, cove/hidden lighting, coffered panels, wood ceilings or any new ceiling design that is not in the source photo.",
+    "Keep the exact room size, floor area, wall lengths and proportions. Do not make the room look larger, smaller, longer, wider or taller than the source photo.",
+    "Do not add decorative feature walls such as brick, exposed brick, stone, marble slab, wood-slat or 3D paneling walls unless they already exist in the source photo. Keep the original wall surfaces and only apply smooth neutral paint where an unfinished wall needs finishing.",
     "Do not zoom in, zoom out, rotate the camera, crop differently, restage the scene, or replace the room with a showroom.",
     "Keep the visible room footprint and proportions the same as the source photo.",
     "If unsure, leave architectural elements unchanged rather than redesigning them.",
@@ -271,27 +296,27 @@ function buildAdvice(project: Record<string, unknown>) {
   const sizeNote = size ? `khổ ${size}` : "đúng khổ đã chọn";
   const surfaceNote = surface ? `bề mặt ${surface.toLowerCase()}` : "bề mặt đã chọn";
 
-  let furniture = "Bố trí nội thất trung tính, gọn, giữ lối đi thoáng và để nền gạch vẫn nhìn rõ.";
-  let wall = `Ưu tiên tường trắng ấm, ghi nhạt hoặc kem để mẫu gạch nổi bật trong ${roomType.toLowerCase()} phong cách ${style.toLowerCase()}.`;
+  let furniture = "Bố trí nội thất đơn giản, gọn gàng, chừa lối đi thoáng và để lộ nền gạch cho dễ nhìn.";
+  let wall = `Nên sơn tường màu trắng ấm, kem hoặc xám nhạt để mẫu gạch nổi bật trong ${roomType.toLowerCase()} phong cách ${style.toLowerCase()}.`;
 
   if (isBedroomRoom(project)) {
-    wall = `Hoàn thiện tường phẳng màu trắng ấm, be hoặc greige; có thể thêm mảng đầu giường nhẹ để hợp phòng ngủ phong cách ${style.toLowerCase()}.`;
-    furniture = "Bố trí giường ngủ, tab đầu giường, tủ áo hoặc bàn trang điểm nhỏ, rèm mềm; không dùng sofa/bàn trà phòng khách.";
+    wall = `Sơn tường phẳng màu trắng ấm, kem hoặc xám nhạt; có thể ốp nhẹ mảng tường sau đầu giường cho hợp phòng ngủ phong cách ${style.toLowerCase()}.`;
+    furniture = "Kê giường, táp đầu giường, tủ quần áo hoặc bàn trang điểm nhỏ và rèm mềm; không dùng sofa hay bàn trà phòng khách.";
   } else if (isKitchenRoom(project)) {
-    furniture = "Bố trí hệ tủ bếp, mặt bếp, khu ăn nhỏ và đèn thao tác; giữ lối đi thông thoáng, không dùng giường/sofa phòng khách.";
+    furniture = "Lắp tủ bếp trên và dưới, mặt bàn bếp, khu ăn nhỏ và đèn chiếu chỗ nấu; chừa lối đi thoáng, không kê giường hay sofa.";
   } else if (isOfficeRoom(project)) {
-    furniture = "Bố trí bàn làm việc, ghế công thái học, kệ sách gọn và đèn làm việc; giữ mặt sàn gạch được nhìn rõ.";
+    furniture = "Kê bàn làm việc, ghế ngồi thoải mái, kệ sách gọn và đèn bàn; để lộ mặt sàn gạch cho dễ nhìn.";
   }
 
   if (mode !== "full_design") {
-    furniture = "Giữ nội thất hiện có, chỉ thêm decor nhẹ nếu cần để tránh che mất nền gạch.";
+    furniture = "Giữ nguyên nội thất hiện có, chỉ thêm vài món trang trí nhẹ nếu cần, tránh che mất nền gạch.";
   }
 
   return JSON.stringify({
     wall,
     furniture,
-    lighting: "Dùng ánh sáng vàng ấm 3000K-3500K, kết hợp đèn trần và đèn điểm nhẹ để mặt gạch có chiều sâu.",
-    construction: `Lát gạch ${sizeNote}, ron 2mm-3mm, màu ron gần tone gạch; giữ đúng hướng vân và ${surfaceNote}, không kéo giãn texture.`,
+    lighting: "Dùng ánh sáng vàng ấm dịu, kết hợp đèn trần và vài đèn điểm để mặt gạch trông có chiều sâu.",
+    construction: `Lát gạch ${sizeNote}, để mạch ron khoảng 2-3mm và chọn màu ron gần với màu gạch; lát đúng chiều vân và ${surfaceNote}, tránh lát lệch làm méo vân gạch.`,
   });
 }
 
@@ -307,13 +332,18 @@ async function fetchBlob(url: string, label: string) {
   return await response.blob();
 }
 
-async function callOpenAI(roomBlob: Blob, tileBlob: Blob, prompt: string, model: string) {
+async function callOpenAI(roomBlob: Blob, tileBlob: Blob, prompt: string, model: string, count = 1) {
   const form = new FormData();
   form.append("model", model);
   form.append("prompt", prompt);
   form.append("size", Deno.env.get("OPENAI_IMAGE_SIZE") ?? "auto");
   form.append("quality", Deno.env.get("OPENAI_IMAGE_QUALITY") ?? "medium");
-  form.append("n", "1");
+  // input_fidelity=high forces gpt-image to keep the source room faithfully (walls, ceiling,
+  // window positions, proportions) instead of reimagining a new room. Set OPENAI_INPUT_FIDELITY
+  // to empty to disable if a model rejects the parameter.
+  const inputFidelity = Deno.env.get("OPENAI_INPUT_FIDELITY") ?? "high";
+  if (inputFidelity) form.append("input_fidelity", inputFidelity);
+  form.append("n", String(count));
   form.append("image[]", roomBlob, "room.png");
   form.append("image[]", tileBlob, "tile.png");
 
@@ -345,10 +375,13 @@ async function callOpenAI(roomBlob: Blob, tileBlob: Blob, prompt: string, model:
     throw new Error(payload?.error?.message ?? "OpenAI image generation failed.");
   }
 
-  const first = payload?.data?.[0];
-  if (first?.b64_json) return { b64: first.b64_json };
-  if (first?.url) return { url: first.url };
-  throw new Error("OpenAI did not return an image.");
+  const items: Array<{ b64?: string; url?: string }> = (payload?.data ?? [])
+    .map((item: { b64_json?: string; url?: string }) =>
+      item?.b64_json ? { b64: item.b64_json } : item?.url ? { url: item.url } : null,
+    )
+    .filter((item: { b64?: string; url?: string } | null): item is { b64?: string; url?: string } => item !== null);
+  if (!items.length) throw new Error("OpenAI did not return an image.");
+  return { images: items };
 }
 
 function base64ToBytes(base64: string) {
@@ -424,36 +457,67 @@ Deno.serve(async (req) => {
       fetchBlob(project.tile_image_url, "tile"),
     ]);
 
-    const result = await callOpenAI(roomBlob, tileBlob, buildPrompt(projectForGeneration), model);
+    // Mỗi model render 1 mẫu để khách có nhiều phương án ĐỘC LẬP (không để 1 model tạo
+    // nhiều ảnh). Chỉ dòng gpt-image của OpenAI mới sửa ảnh phòng theo ảnh gạch tham chiếu.
+    // Đặt danh sách qua OPENAI_IMAGE_MODELS (ngăn cách bởi dấu phẩy); mặc định 2 model.
+    const models: string[] = (Deno.env.get("OPENAI_IMAGE_MODELS") ?? `${model},gpt-image-1`)
+      .split(",")
+      .map((m: string) => m.trim())
+      .filter((m: string) => m.length > 0);
+    const prompt = buildPrompt(projectForGeneration);
     const adviceText = fallbackAdvice(projectForGeneration);
-    let resultBytes: Uint8Array;
 
-    if (result.b64) {
-      resultBytes = base64ToBytes(result.b64);
-    } else if (result.url) {
-      const imageResponse = await fetch(result.url);
-      if (!imageResponse.ok) throw new Error("Cannot download OpenAI result image.");
-      resultBytes = new Uint8Array(await imageResponse.arrayBuffer());
-    } else {
-      throw new Error("No generated image returned.");
+    // Render song song để 2 model không cộng dồn thời gian gây timeout. Model nào lỗi thì
+    // bỏ qua, vẫn giữ các mẫu còn lại.
+    const settled = await Promise.allSettled(
+      models.map((m: string) =>
+        callOpenAI(roomBlob, tileBlob, prompt, m, 1).then((r) => ({ model: m, image: r.images[0] })),
+      ),
+    );
+
+    const resultUrls: string[] = [];
+    const usedModels: string[] = [];
+    const errors: string[] = [];
+    for (const outcome of settled) {
+      if (outcome.status === "rejected") {
+        errors.push(outcome.reason instanceof Error ? outcome.reason.message : String(outcome.reason));
+        continue;
+      }
+      const { model: usedModel, image } = outcome.value;
+      let resultBytes: Uint8Array;
+      if (image?.b64) {
+        resultBytes = base64ToBytes(image.b64);
+      } else if (image?.url) {
+        const imageResponse = await fetch(image.url);
+        if (!imageResponse.ok) {
+          errors.push(`Không tải được ảnh từ ${usedModel}.`);
+          continue;
+        }
+        resultBytes = new Uint8Array(await imageResponse.arrayBuffer());
+      } else {
+        continue;
+      }
+
+      const path = `results/${userData.user.id}/${Date.now()}-${project.id}-${resultUrls.length}.png`;
+      const { error: uploadError } = await supabase.storage
+        .from("duha-images")
+        .upload(path, resultBytes, { contentType: "image/png", upsert: true });
+      if (uploadError) throw new Error(uploadError.message);
+      resultUrls.push(supabase.storage.from("duha-images").getPublicUrl(path).data.publicUrl);
+      usedModels.push(usedModel);
     }
 
-    const path = `results/${userData.user.id}/${Date.now()}-${project.id}.png`;
-    const { error: uploadError } = await supabase.storage
-      .from("duha-images")
-      .upload(path, resultBytes, { contentType: "image/png", upsert: true });
+    if (!resultUrls.length) throw new Error(errors[0] ?? "No generated image returned.");
 
-    if (uploadError) throw new Error(uploadError.message);
-
-    const { data: publicUrl } = supabase.storage.from("duha-images").getPublicUrl(path);
     const { data: updatedProject, error: updateError } = await supabase
       .from("projects")
       .update({
-        result_image_url: publicUrl.publicUrl,
+        result_image_url: resultUrls[0],
+        result_image_urls: resultUrls,
         advice_text: adviceText,
         generation_status: "succeeded",
         generation_error: null,
-        ai_model: model,
+        ai_model: usedModels.join(", "),
         generated_at: new Date().toISOString(),
         status: "AI rendered",
         updated_at: new Date().toISOString(),

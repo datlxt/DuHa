@@ -3,7 +3,7 @@
 # which fills it in for you. Then:
 #   supabase db push                              # apply supabase/migrations/*
 #   supabase functions deploy generate-visualization
-project_id = "your-project-ref"
+project_id = "vuvhfnivgyujddxaewzy"
 
 [functions.generate-visualization]
 verify_jwt = true

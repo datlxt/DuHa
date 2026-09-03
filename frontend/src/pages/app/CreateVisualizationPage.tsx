@@ -1,12 +1,12 @@
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import { Check, Download, FileText, RefreshCw, Save, Sparkles, Upload } from "lucide-react";
+import { Check, ChevronDown, Download, FileText, Loader2, RefreshCw, Save, Sparkles, Upload, X } from "lucide-react";
 import { Button, Input, Select, Textarea } from "../../components/common/Form";
 import { ImageWithFallback } from "../../components/common/ImageWithFallback";
 import { useAuth } from "../../contexts/AuthContext";
 import { readableError } from "../../lib/env";
 import { getCustomers } from "../../services/customerService";
-import { createProject } from "../../services/projectService";
+import { createProject, updateProject } from "../../services/projectService";
 import { generateVisualization } from "../../services/aiGenerationService";
 import { uploadRoomImage, uploadTileImage } from "../../services/storageService";
 import { getTiles } from "../../services/tileService";
@@ -14,6 +14,10 @@ import type { Customer, Project, Tile } from "../../types";
 
 type RenderMode = "tile_only" | "full_design";
 type AdviceKey = "wall" | "furniture" | "lighting" | "construction";
+
+function isAbort(error: unknown): boolean {
+  return error instanceof DOMException && error.name === "AbortError";
+}
 
 const tileSizeOptions = ["15x80", "15x90", "20x100", "20x120", "30x60", "40x80", "60x60", "60x120", "75x150", "80x80", "90x90", "100x100", "120x120"];
 const tileSurfaceOptions = ["Mờ", "Mát", "Bóng", "Nhám", "Men matt", "Men bóng", "Sugar", "Lappato", "Vân đá", "Vân gỗ"];
@@ -105,12 +109,12 @@ function exportCustomerPackage(project: Project, advice: Record<AdviceKey, strin
   URL.revokeObjectURL(url);
 }
 
-function PreviewBox({ label, src, emptyText }: { label: string; src?: string | null; emptyText: string }) {
+function PreviewBox({ label, src, emptyText, images }: { label: string; src?: string | null; emptyText: string; images?: string[] }) {
   return (
     <div>
       <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-burgundy">{label}</p>
       {src ? (
-        <ImageWithFallback className="h-44 w-full rounded-lg object-cover" src={src} alt={label} fallbackLabel={emptyText} />
+        <ImageWithFallback className="h-44 w-full rounded-lg object-cover" src={src} alt={label} fallbackLabel={emptyText} images={images} />
       ) : (
         <div className="flex h-44 items-center justify-center rounded-lg border border-dashed border-beige bg-cream text-sm text-muted">
           {emptyText}
@@ -129,6 +133,8 @@ export function CreateVisualizationPage() {
   const [roomPreview, setRoomPreview] = useState("");
   const [tilePreview, setTilePreview] = useState("");
   const [customerNote, setCustomerNote] = useState("");
+  const [openAdvice, setOpenAdvice] = useState<AdviceKey | null>(null);
+  const abortRef = useRef<AbortController | null>(null);
   const [loading, setLoading] = useState(false);
   const [loadingOptions, setLoadingOptions] = useState(true);
   const [loadError, setLoadError] = useState("");
@@ -217,9 +223,11 @@ export function CreateVisualizationPage() {
     setError("");
     setStatusMessage("");
     setLoading(true);
+    const controller = new AbortController();
+    abortRef.current = controller;
 
     try {
-      setStatusMessage("Đang tải ảnh phòng và mẫu gạch lên Supabase Storage...");
+      setStatusMessage("Đang tải ảnh phòng và mẫu gạch lên hệ thống...");
       const roomUrl = await uploadRoomImage(roomFile, user.id);
       const tileUrl = tileFile ? await uploadTileImage(tileFile, user.id) : selectedTile?.image_url ?? null;
 
@@ -249,13 +257,19 @@ export function CreateVisualizationPage() {
           ? "AI đang hoàn thiện nội thất, lát gạch và render phối cảnh. Vui lòng chờ..."
           : "AI đang thay gạch nền và giữ nguyên không gian hiện có. Vui lòng chờ...",
       );
-      const generated = await generateVisualization(saved.id);
+      const generated = await generateVisualization(saved.id, controller.signal);
       setProject(generated);
       setStatusMessage("Đã render AI thành công.");
     } catch (caughtError) {
-      setError(readableError(caughtError));
+      if (isAbort(caughtError)) {
+        setStatusMessage("Đã huỷ. AI có thể vẫn hoàn tất ở nền — kết quả sẽ hiện trong dự án khi xong.");
+      } else {
+        setError(readableError(caughtError));
+        setStatusMessage("");
+      }
     } finally {
       setLoading(false);
+      abortRef.current = null;
     }
   }
 
@@ -264,14 +278,38 @@ export function CreateVisualizationPage() {
     setLoading(true);
     setError("");
     setStatusMessage("Đang tạo phương án khác từ cùng ảnh phòng và mẫu gạch...");
+    const controller = new AbortController();
+    abortRef.current = controller;
     try {
-      const generated = await generateVisualization(project.id);
+      const generated = await generateVisualization(project.id, controller.signal);
       setProject(generated);
       setStatusMessage("Đã tạo phương án mới.");
     } catch (caughtError) {
-      setError(readableError(caughtError));
+      if (isAbort(caughtError)) {
+        setStatusMessage("Đã huỷ. AI có thể vẫn hoàn tất ở nền — kết quả sẽ hiện trong dự án khi xong.");
+      } else {
+        setError(readableError(caughtError));
+        setStatusMessage("");
+      }
     } finally {
       setLoading(false);
+      abortRef.current = null;
+    }
+  }
+
+  function cancelRender() {
+    abortRef.current?.abort();
+  }
+
+  async function selectResult(url: string) {
+    if (!project || project.result_image_url === url) return;
+    const previous = project;
+    setProject({ ...project, result_image_url: url });
+    try {
+      await updateProject(project.id, { result_image_url: url });
+    } catch (caughtError) {
+      setProject(previous);
+      setError(readableError(caughtError));
     }
   }
 
@@ -340,15 +378,33 @@ export function CreateVisualizationPage() {
               </Select>
             </div>
 
-            <label className="group relative h-44 cursor-pointer overflow-hidden rounded-lg border border-dashed border-beige bg-cream">
-              {roomPreview ? <img className="h-full w-full object-cover" src={roomPreview} alt="Ảnh phòng mộc" /> : <span className="flex h-full items-center justify-center gap-2 text-sm text-muted"><Upload size={18} /> Tải ảnh phòng mộc</span>}
-              {roomPreview ? <span className="absolute right-3 top-3 rounded-full bg-burgundy px-3 py-1 text-xs font-semibold text-white">Đã tải</span> : null}
+            <label className="group relative flex h-24 cursor-pointer items-center gap-3 overflow-hidden rounded-lg border border-dashed border-beige bg-cream px-3">
+              {roomPreview ? (
+                <>
+                  <img className="h-16 w-16 shrink-0 rounded-md object-cover" src={roomPreview} alt="Ảnh phòng mộc" />
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-charcoal">Ảnh phòng mộc</p>
+                    <p className="text-xs font-semibold text-burgundy">Đã tải · bấm để đổi</p>
+                  </div>
+                </>
+              ) : (
+                <span className="flex w-full items-center justify-center gap-2 text-sm text-muted"><Upload size={18} /> Tải ảnh phòng mộc</span>
+              )}
               <input className="sr-only" type="file" accept="image/*" onChange={(e) => setRoomFile(e.target.files?.[0] ?? null)} required />
             </label>
 
-            <label className="group relative h-44 cursor-pointer overflow-hidden rounded-lg border border-dashed border-beige bg-cream">
-              {tileSource ? <img className="h-full w-full object-cover" src={tileSource} alt="Ảnh mẫu gạch" /> : <span className="flex h-full items-center justify-center gap-2 text-sm text-muted"><Upload size={18} /> Tải ảnh mẫu gạch</span>}
-              {tileSource ? <span className="absolute right-3 top-3 rounded-full bg-burgundy px-3 py-1 text-xs font-semibold text-white">Đã tải</span> : null}
+            <label className="group relative flex h-24 cursor-pointer items-center gap-3 overflow-hidden rounded-lg border border-dashed border-beige bg-cream px-3">
+              {tileSource ? (
+                <>
+                  <img className="h-16 w-16 shrink-0 rounded-md object-cover" src={tileSource} alt="Ảnh mẫu gạch" />
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-charcoal">Ảnh mẫu gạch</p>
+                    <p className="text-xs font-semibold text-burgundy">Đã tải · bấm để đổi</p>
+                  </div>
+                </>
+              ) : (
+                <span className="flex w-full items-center justify-center gap-2 text-sm text-muted"><Upload size={18} /> Tải ảnh mẫu gạch</span>
+              )}
               <input className="sr-only" type="file" accept="image/*" onChange={(e) => setTileFile(e.target.files?.[0] ?? null)} />
             </label>
 
@@ -408,7 +464,17 @@ export function CreateVisualizationPage() {
             </Button>
           </div>
 
-          {statusMessage ? <p className="lg:col-span-2 text-sm text-amber-700">{statusMessage}</p> : null}
+          {statusMessage ? (
+            <div className={`lg:col-span-2 flex items-center gap-2 rounded-lg border px-4 py-3 text-sm ${loading ? "border-amber-200 bg-amber-50 text-amber-800" : "border-green-200 bg-green-50 text-green-700"}`}>
+              {loading ? <Loader2 size={16} className="shrink-0 animate-spin" /> : <Check size={16} className="shrink-0" />}
+              <span className="flex-1">{statusMessage}</span>
+              {loading ? (
+                <button type="button" onClick={cancelRender} className="flex shrink-0 items-center gap-1 rounded-md border border-amber-300 bg-white px-2.5 py-1 text-xs font-semibold text-amber-800 transition hover:bg-amber-100">
+                  <X size={14} /> Huỷ
+                </button>
+              ) : null}
+            </div>
+          ) : null}
           {error ? <p className="lg:col-span-2 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</p> : null}
         </form>
 
@@ -416,19 +482,65 @@ export function CreateVisualizationPage() {
           <div className="grid gap-4 lg:grid-cols-3">
             <PreviewBox label="Phòng mộc" src={project?.room_image_url ?? roomPreview} emptyText="Chưa có ảnh phòng" />
             <PreviewBox label="Mẫu gạch" src={project?.tile_image_url ?? tileSource} emptyText="Chưa có mẫu gạch" />
-            <PreviewBox label="Phối cảnh DuHa AI" src={project?.result_image_url} emptyText="AI đang render hoặc chưa có kết quả" />
+            <PreviewBox label="Phối cảnh DuHa AI" src={project?.result_image_url} emptyText="AI đang render hoặc chưa có kết quả" images={project?.result_image_urls ?? undefined} />
           </div>
 
+          {project?.result_image_urls && project.result_image_urls.length > 1 ? (
+            <div className="mt-4">
+              <p className="mb-2 text-xs font-bold uppercase tracking-wide text-burgundy">
+                Chọn mẫu cho khách ({project.result_image_urls.length} phương án)
+              </p>
+              <div className="grid grid-cols-3 gap-3 sm:max-w-md">
+                {project.result_image_urls.map((url, idx) => {
+                  const active = project.result_image_url === url;
+                  return (
+                    <button
+                      type="button"
+                      key={url}
+                      onClick={() => void selectResult(url)}
+                      className={`overflow-hidden rounded-lg border-2 bg-white text-center transition ${active ? "border-burgundy" : "border-beige hover:border-burgundy/50"}`}
+                    >
+                      <img src={url} alt={`Mẫu ${idx + 1}`} className="h-24 w-full object-cover" />
+                      <span className={`block py-1 text-xs font-semibold ${active ? "text-burgundy" : "text-muted"}`}>
+                        {active ? `✓ Mẫu ${idx + 1}` : `Mẫu ${idx + 1}`}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          ) : null}
+
           <div className="mt-6 grid gap-4 lg:grid-cols-[minmax(0,1fr)_240px] xl:grid-cols-[minmax(0,1fr)_280px]">
-            <div className="grid gap-4 sm:grid-cols-2">
-              {(Object.keys(adviceLabels) as AdviceKey[]).map((key) => (
-                <div className="min-h-40 rounded-lg border border-beige bg-cream p-5" key={key}>
-                  <p className="text-xs font-bold uppercase tracking-wide text-burgundy">{adviceLabels[key]}</p>
-                  <p className="mt-3 min-h-16 text-base leading-7 text-ink">
-                    {hasAiResult ? resultAdvice[key] : <span className="text-muted">Sẽ hiển thị sau khi tạo ảnh AI.</span>}
-                  </p>
-                </div>
-              ))}
+            <div>
+              <p className="mb-2 flex items-center gap-2 text-xs font-bold uppercase tracking-wide text-burgundy">
+                <Sparkles size={14} /> Gợi ý từ AI
+              </p>
+              <div className="divide-y divide-beige overflow-hidden rounded-lg border border-beige">
+                {(Object.keys(adviceLabels) as AdviceKey[]).map((key) => {
+                  const open = openAdvice === key;
+                  return (
+                    <div key={key}>
+                      <button
+                        type="button"
+                        onClick={() => setOpenAdvice(open ? null : key)}
+                        className="flex w-full items-center justify-between gap-3 bg-white px-4 py-3 text-left transition hover:bg-ivory"
+                      >
+                        <span className="text-xs font-bold uppercase tracking-wide text-burgundy">{adviceLabels[key]}</span>
+                        <span className="flex items-center gap-2">
+                          <span className={`text-[11px] font-medium ${hasAiResult ? "text-green-600" : "text-muted"}`}>{hasAiResult ? "Đã có" : "Chưa có"}</span>
+                          <ChevronDown size={16} className={`text-muted transition-transform ${open ? "rotate-180" : ""}`} />
+                        </span>
+                      </button>
+                      {open ? (
+                        <div className="bg-cream px-4 pb-4 pt-1 text-sm leading-7 text-charcoal">
+                          {hasAiResult ? resultAdvice[key] : <span className="text-muted">Gợi ý sẽ hiển thị sau khi tạo ảnh AI.</span>}
+                        </div>
+                      ) : null}
+                    </div>
+                  );
+                })}
+              </div>
             </div>
             <Textarea className="min-h-32 text-sm" placeholder="Ghi chú cho khách hàng..." value={customerNote} onChange={(event) => setCustomerNote(event.target.value)} />
           </div>

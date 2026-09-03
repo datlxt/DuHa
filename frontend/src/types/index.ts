@@ -52,6 +52,7 @@ export type Project = {
   room_image_url: string | null;
   tile_image_url: string | null;
   result_image_url: string | null;
+  result_image_urls?: string[] | null;
   advice_text: string | null;
   generation_status: string | null;
   generation_error: string | null;
